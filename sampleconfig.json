@@ -1,0 +1,16 @@
+{
+    "credentials": {
+        "user": "MAIL",
+        "pass": "PASSWORD"
+    },
+    "imap": {
+        "host": "imap.gmail.com"
+    },
+    "smtp": {
+        "host": "smtp.gmail.com",
+        "port": "587"
+    },
+    "mail_list": {
+        "url": "https://docs.google.com/spreadsheets/d/ID OD VAŠE RAZPREDELNICE/gviz/tq?tqx=out:csv"
+    }
+}

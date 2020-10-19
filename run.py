@@ -1,0 +1,30 @@
+from forward import *
+import logging
+import json
+import datetime
+import sys
+
+file_loc = "config.json"
+if len(sys.argv) > 1:
+    file_loc = sys.argv[1]
+logging.basicConfig(
+    level=logging.WARNING,
+    filename="system" + str(datetime.date.today()) + ".log",
+    filemode="a",
+)
+logging.getLogger().addHandler(logging.StreamHandler())
+with open(file_loc) as json_data_file:
+    config = json.load(json_data_file)
+creds = (config["credentials"]["user"], config["credentials"]["pass"])
+m = Imapidler(
+    config["imap"]["host"],
+    config["credentials"]["user"],
+    config["credentials"]["pass"],
+    config["smtp"]["host"],
+    config["smtp"]["port"],
+    config["mail_list"]["url"],
+)
+try:
+    m.run()
+except KeyboardInterrupt:
+    pass
