@@ -4,6 +4,8 @@ import pandas as pd
 from imapclient import IMAPClient, SEEN
 import email
 import datetime
+import time
+import re
 
 
 class SmtpClient:
@@ -19,14 +21,28 @@ class SmtpClient:
         logging.debug("SMTP connected to " + self.host + " to port " + self.port)
 
     def SendMail(self, mail_list, email):
+        replay_to = True
         from_addr = email.get("From")
-        sub = email.get("subject")
+        sub = email.get("Subject")
+        m = re.search("send: (.+) subject: (.+)", sub)
+        if m and any([x in from_addr for x in mail_list]):
+            sub = m.group(2)
+            mail_list = [m.group(1)]
+            logging.info(from_addr + " sent an email")
+            print(from_addr + " sent an email")
+            replay_to = False
+
         for header in email._headers:
             email._headers.remove(header)
-        email.add_header("reply-to", from_addr)
+        if replay_to:
+            email.add_header("reply-to", from_addr)
+        del email["Subject"]
+        del email["To"]
+        del email["From"]
         email.add_header("From", self.cred[0])
         email.add_header("To", ", ".join(mail_list))
-        email.add_header("subject", str(sub + " from: " + from_addr))
+        email.add_header("Subject", str(sub + " from: " + from_addr))
+        email["Subject"] = str(sub + " from: " + from_addr)
         response = self.connection.send_message(email)
         if response != {}:
             logging.warning(
@@ -73,15 +89,19 @@ class Imapidler:
         self.server.login(USERNAME, PASSWORD)
         self.smtp = SmtpClient((USERNAME, PASSWORD), SMTPHOST, SMTPPORT)
         self.maillist = GetMails(MAILURL)
+        self.lastupdatetime = 0
         print("Logged in as " + USERNAME)
 
     def run(self):
+        print("The loop has started")
         self.server.select_folder("INBOX")
         self.server.idle()
+        first_loop = True
         while True:
             try:
                 responses = self.server.idle_check(timeout=self.timeout)
-                if responses:
+                if responses or first_loop:
+                    first_loop = False
                     self.server.idle_done()
                     messages = self.server.search("UNSEEN")
                     for uid, message_data in self.server.fetch(
@@ -98,9 +118,28 @@ class Imapidler:
                             + " sent!"
                         )
                     self.server.idle()
+                if time.time() - self.lastupdatetime > 5 * 60:
+                    self.server.idle_done()
+                    self.server.idle()
+                    self.lastupdatetime = time.time()
                 print(
-                    "Last idle reset at " + datetime.datetime.now().isoformat(),
+                    "Last idle reset at "
+                    + datetime.datetime.utcfromtimestamp(
+                        self.lastupdatetime
+                    ).isoformat(),
                     end="\r",
                 )
             except Exception as e:
+                self.server.idle_done()
                 logging.error(e)
+                if time.time() - self.lastupdatetime < 3 * 60:
+                    time.sleep(5 * 60)
+                    print("Error recurring. Wating...", end="\r")
+                    logging.warning("Error recurring. Wating...")
+                self.lastupdatetime = time.time()
+                self.server.logout()
+                self.server = IMAPClient(self.IMAPHOST)
+                self.server.login(self.USERNAME, self.PASSWORD)
+                self.server.select_folder("INBOX")
+                self.server.idle()
+
