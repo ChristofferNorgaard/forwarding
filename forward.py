@@ -43,7 +43,11 @@ class SmtpClient:
         email.add_header("To", ", ".join(mail_list))
         email.add_header("Subject", str(sub + " from: " + from_addr))
         email["Subject"] = str(sub + " from: " + from_addr)
-        response = self.connection.send_message(email)
+        try:
+            response = self.connection.send_message(email)
+        except:
+            self.Connect()
+            response = self.connection.send_message(email)
         if response != {}:
             logging.warning(
                 "response of the email(" + str(sub) + ") sending was " + str(response)
@@ -118,7 +122,7 @@ class Imapidler:
                             + " sent!"
                         )
                     self.server.idle()
-                if time.time() - self.lastupdatetime > 5 * 60:
+                if time.time() - self.lastupdatetime > 10 * 60:
                     self.server.idle_done()
                     self.server.idle()
                     self.lastupdatetime = time.time()
