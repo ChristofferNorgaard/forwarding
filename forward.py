@@ -130,16 +130,27 @@ class Imapidler:
                     end="\r",
                 )
             except Exception as e:
-                self.server.idle_done()
+                first_loop = True
+                try:
+                    self.server.idle_done()
+                except:
+                    pass
                 logging.error(e)
                 if time.time() - self.lastupdatetime < 3 * 60:
                     time.sleep(5 * 60)
                     print("Error recurring. Wating...", end="\r")
                     logging.warning("Error recurring. Wating...")
                 self.lastupdatetime = time.time()
-                self.server.logout()
-                self.server = IMAPClient(self.IMAPHOST)
-                self.server.login(self.USERNAME, self.PASSWORD)
-                self.server.select_folder("INBOX")
-                self.server.idle()
+                try:
+                    self.server.logout()
+                except:
+                    pass
+                while True:
+                    try:
+                        self.server = IMAPClient(self.IMAPHOST)
+                        self.server.login(self.USERNAME, self.PASSWORD)
+                        self.server.select_folder("INBOX")
+                        self.server.idle()
+                    except:
+                        time.sleep(3 * 60)
 
