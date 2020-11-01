@@ -128,14 +128,16 @@ class Imapidler:
             if mails or first_loop:
                 for mail in mails[0].split():
                     typ, data1 = self.connection.fetch(mail, "(RFC822)")
-                    try:
-                        email_message = message_from_bytes(data1[0][1])
-                    except:
-                        typ, data1 = self.connection.fetch(mail, "(RFC822)")
-                        email_message = message_from_bytes(data1[0][1])
-                    self.smtp.Connect()
-                    self.smtp.SendMail(self.maillist.GetMailList(), email_message)
-                    print(
-                        "email with subject " + email_message.get("subject") + " sent!"
-                    )
+                    for data in data1:
+                        if isinstance(data, tuple):
+                            try:
+                                email_message = message_from_bytes(data[1])
+                            except:
+                                typ, data1 = self.connection.fetch(mail, "(RFC822)")
+                                email_message = message_from_bytes(data1[0][1])
+                            self.smtp.Connect()
+                            self.smtp.SendMail(self.maillist.GetMailList(), email_message)
+                            print(
+                                "email with subject " + email_message.get("subject") + " sent!"
+                            )
 
