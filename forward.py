@@ -1,7 +1,10 @@
 import smtplib
 import logging
 import pandas as pd
-from imapclient import IMAPClient, SEEN
+from email import message_from_bytes
+
+# from imapclient import IMAPClient, SEEN\
+import imaplib3 as imaplib
 import email
 import datetime
 import time
@@ -88,73 +91,51 @@ class Imapidler:
         self.HOST = IMAPHOST
         self.USERNAME = USERNAME
         self.PASSWORD = PASSWORD
-        self.timeout = timeout
-        self.server = IMAPClient(IMAPHOST)
-        self.server.login(USERNAME, PASSWORD)
+        # self.timeout = timeout
+        # self.server = IMAPClient(IMAPHOST)
+        # self.server.login(USERNAME, PASSWORD)
         self.smtp = SmtpClient((USERNAME, PASSWORD), SMTPHOST, SMTPPORT)
         self.maillist = GetMails(MAILURL)
         self.lastupdatetime = 0
+        self.connection = None
         print("Logged in as " + USERNAME)
+        # self.Connect()
+
+    def Connect(self):
+        
+        self.connection = imaplib.IMAP4_SSL("imap.gmail.com")
+
+        self.connection.login(self.USERNAME, self.PASSWORD)
+
+        self.connection.select()
+ 
+        logging.debug("IMAP established connection to " + self.HOST)
 
     def run(self):
+        if not self.connection:
+            self.Connect()
         print("The loop has started")
-        self.server.select_folder("INBOX")
-        self.server.idle()
+        # self.server.select_folder("INBOX")
+        # self.server.idle()
         first_loop = True
         while True:
-            try:
-                responses = self.server.idle_check(timeout=self.timeout)
-                if responses or first_loop:
-                    first_loop = False
-                    self.server.idle_done()
-                    messages = self.server.search("UNSEEN")
-                    for uid, message_data in self.server.fetch(
-                        messages, "RFC822"
-                    ).items():
-                        email_message = email.message_from_bytes(
-                            message_data[b"RFC822"]
-                        )
-                        self.smtp.Connect()
-                        self.smtp.SendMail(self.maillist.GetMailList(), email_message)
-                        print(
-                            "email with subject "
-                            + email_message.get("subject")
-                            + " sent!"
-                        )
-                    self.server.idle()
-                if time.time() - self.lastupdatetime > 10 * 60:
-                    self.server.idle_done()
-                    self.server.idle()
-                    self.lastupdatetime = time.time()
-                print(
-                    "Last idle reset at "
-                    + datetime.datetime.utcfromtimestamp(
-                        self.lastupdatetime
-                    ).isoformat(),
-                    end="\r",
-                )
-            except Exception as e:
-                first_loop = True
-                try:
-                    self.server.idle_done()
-                except:
-                    pass
-                logging.error(e)
-                if time.time() - self.lastupdatetime < 3 * 60:
-                    time.sleep(5 * 60)
-                    print("Error recurring. Wating...", end="\r")
-                    logging.warning("Error recurring. Wating...")
-                self.lastupdatetime = time.time()
-                try:
-                    self.server.logout()
-                except:
-                    pass
-                while True:
+            if not first_loop:
+                self.connection.idle()
+            else:
+                first_loop = False
+            #self.connection.select()
+            typ, mails = self.connection.search(None, "(UNSEEN)")
+            if mails or first_loop:
+                for mail in mails[0].split():
+                    typ, data1 = self.connection.fetch(mail, "(RFC822)")
                     try:
-                        self.server = IMAPClient(self.IMAPHOST)
-                        self.server.login(self.USERNAME, self.PASSWORD)
-                        self.server.select_folder("INBOX")
-                        self.server.idle()
+                        email_message = message_from_bytes(data1[0][1])
                     except:
-                        time.sleep(3 * 60)
+                        typ, data1 = self.connection.fetch(mail, "(RFC822)")
+                        email_message = message_from_bytes(data1[0][1])
+                    self.smtp.Connect()
+                    self.smtp.SendMail(self.maillist.GetMailList(), email_message)
+                    print(
+                        "email with subject " + email_message.get("subject") + " sent!"
+                    )
 
