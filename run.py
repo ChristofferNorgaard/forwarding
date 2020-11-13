@@ -23,8 +23,12 @@ m = Imapidler(
     config["smtp"]["host"],
     config["smtp"]["port"],
     config["mail_list"]["url"],
+    config["admin-mail"],
 )
 try:
+    print("You are going to be sendig every mail to:")
+    for i in m.maillist.GetMailList():
+        print("     " + i)
     m.run()
 except KeyboardInterrupt:
     pass
