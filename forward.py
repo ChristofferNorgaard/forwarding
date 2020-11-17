@@ -36,9 +36,10 @@ class SmtpClient:
             logging.info(from_addr + " sent an email")
             print(from_addr + " sent an email")
             replay_to = False
-
+        '''
         for header in email._headers:
             email._headers.remove(header)
+            '''
         if replay_to:
             email.add_header("reply-to", from_addr)
         del email["Subject"]
@@ -88,13 +89,13 @@ class GetMails:
 
 class Imapidler:
     def __init__(
-        self, IMAPHOST, USERNAME, PASSWORD, SMTPHOST, SMTPPORT, MAILURL, ADMINMAIL, timeout=30
+        self, IMAPHOST, USERNAME, PASSWORD, SMTPHOST, SMTPPORT, MAILURL, ADMINMAIL, timeout=6*60
     ):
         self.HOST = IMAPHOST
         self.USERNAME = USERNAME
         self.PASSWORD = PASSWORD
         self.ADMINMAIL = ADMINMAIL
-        # self.timeout = timeout
+        self.timeout = timeout
         # self.server = IMAPClient(IMAPHOST)
         # self.server.login(USERNAME, PASSWORD)
         self.smtp = SmtpClient((USERNAME, PASSWORD), SMTPHOST, SMTPPORT)
@@ -123,7 +124,12 @@ class Imapidler:
         first_loop = True
         while True:
             if not first_loop:
-                self.connection.idle()
+                try:
+                    self.connection.idle()
+                except:
+                    logging.log(logging.WARNING, "switching to manual")
+                    print("switching to manual")
+                    time.sleep(self.timeout)
             else:
                 first_loop = False
             #self.connection.select()
@@ -135,13 +141,17 @@ class Imapidler:
                         if isinstance(data, tuple) and isinstance(data[1], bytes):
                             try:
                                 email_message = message_from_bytes(data[1])
+                                #print(email_message, len(email_message))
                                 self.smtp.Connect()
                                 self.smtp.SendMail(self.maillist.GetMailList(), email_message)
                                 print(
+
                                     "email with subject " + email_message.get("subject") + " sent!"
                                 )
+                                logging.log(logging.INFO, "email with subject " + email_message.get("subject") + " sent!")
                             except Exception as e:
                                 logging.log(logging.ERROR, e)
+                                raise e
                                 self.smtp.DebugMail(self.ADMINMAIL, ("Subject: Error in python \n\r there was an error of: " + str(e)).encode('utf-8'))
                                 self.connection.uid('STORE', mail, '+FLAGS', '(\Seen)')
 
